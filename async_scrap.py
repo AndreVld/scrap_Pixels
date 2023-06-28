@@ -4,22 +4,22 @@ from aiohttp import ClientSession
 from asyncio import Queue
 import math
 from timer import async_timed
+import aiofiles
+from pathlib import Path
 
 
 @async_timed
 async def download_file(session: ClientSession, queue: Queue, dir_name: str):
-    if not os.path.exists(dir_name):
-        os.makedirs(dir_name)
-
     while not queue.empty():
         data_file = queue.get_nowait()
         url = data_file[1]
         file_name =  f"{data_file[0].replace(' ', '_')}_{url.split('-')[-1]}"
 
         async with session.get(url) as response:
-            with open(f'./{dir_name}/{file_name}', 'wb') as file:
+            path = Path('.', dir_name, file_name)
+            async with aiofiles.open(path, 'wb') as file:
                 async for chunk in response.content.iter_chunked(1024):
-                    file.write(chunk)
+                    await file.write(chunk)
 
         queue.task_done()
 
@@ -40,9 +40,10 @@ async def add_urls(session: ClientSession, queue: Queue, total_pages: int, query
 
 @async_timed
 async def main():
-    query = input('Enter a keyword to search : ')
+    # query = input('Enter a keyword to search : ')
+    query = 'python'
     query = '_'.join(s for s in query.split(' ') if s.isalnum())
-
+    
     if query:
         headers = {'Authorization': f'{os.getenv("PIXELS_API_KEY")}'}
         # The number of results you are requesting per page. Default: 15 Max: 80
@@ -52,6 +53,9 @@ async def main():
         query_str = f'https://api.pexels.com/v1/search?query={query}&per_page={per_page}'
 
         urls_queue = Queue(maxsize=per_page)
+
+        if not os.path.exists(query):
+            os.makedirs(query)
 
         async with ClientSession(headers=headers) as session:
             async with session.get(query_str) as response:
@@ -75,4 +79,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-
